@@ -19,7 +19,7 @@ print "[*] Starting run on $now\n";
 chomp(my @filesystems = `zfs list -o name -H`);
 foreach my $fs (@filesystems) {
 	system("zfs snapshot $fs\@$day-$month-$date-$time-$year-$nowepoch");
-	system("zfs send -v -i $fs\@$last $fs\@$day-$month-$date-$time-$year-$nowepoch | ssh $to \"zfs recv -F $fs\"");
+	system("zfs send -i $fs\@$last $fs\@$day-$month-$date-$time-$year-$nowepoch | ssh $to \"zfs recv -F $fs\"");
 }
 open(my $WAT, '>', '/tmp/.zfs-snapshot.last');
 	print $WAT "$day-$month-$date-$time-$year-$nowepoch";
