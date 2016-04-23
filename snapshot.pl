@@ -17,14 +17,22 @@ my $nowepoch = time();
 my ( $day, $month, $date, $time, $year ) = split(/\s+/, $now);
 print "[*] Starting run on $now\n";
 chomp(my @filesystems = `zfs list -o name -H`);
+my $fail = 0;
 foreach my $fs (@filesystems) {
 	system("zfs snapshot $fs\@$day-$month-$date-$time-$year-$nowepoch");
+	next unless ( $replicate );
 	system("zfs send -i $fs\@$last $fs\@$day-$month-$date-$time-$year-$nowepoch | ssh $to \"zfs recv -F $fs\"");
+	if ( $? ) {
+		$fail = 1;
+	}
 }
-open(my $WAT, '>', '/tmp/.zfs-snapshot.last');
-	print $WAT "$day-$month-$date-$time-$year-$nowepoch";
-close($WAT);
-open(my $DAT, '-|', 'zfs list -o name -t snapshot -H');
+system("ssh $to \"zfs set readonly=on Storage\"") if ( $replicate );
+if (( ! $fail ) || ( $replicate )) {
+	open(my $WAT, '>', '/tmp/.zfs-snapshot.last');
+		print $WAT "$day-$month-$date-$time-$year-$nowepoch";
+	close($WAT);
+}
+open($DAT, '-|', 'zfs list -o name -t snapshot -H');
 	while(<$DAT>) {
 		chomp();
 		if ( /^($pool(\/[a-zA-Z0-9\-\/]+)?)\@([a-zA-Z]+)\-([a-zA-Z]+)\-([0-9]+)\-([0-9]{2}:[0-9]{2}:[0-9]{2})\-([0-9]{4})\-([0-9]{10})/ ) {
