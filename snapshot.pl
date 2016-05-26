@@ -3,7 +3,7 @@ use strict;
 
 my $replicate = 1;
 my $to = 'patton';
-open(my $DAT, '<', '/tmp/.zfs-snapshot.last');
+open(my $DAT, '<', '/.zfs-snapshot.last');
 	chomp(my $last = <$DAT>);
 close($DAT);
 
@@ -28,7 +28,7 @@ foreach my $fs (@filesystems) {
 }
 system("ssh $to \"zfs set readonly=on Storage\"") if ( $replicate );
 if (( ! $fail ) || ( $replicate )) {
-	open(my $WAT, '>', '/tmp/.zfs-snapshot.last');
+	open(my $WAT, '>', '/.zfs-snapshot.last');
 		print $WAT "$day-$month-$date-$time-$year-$nowepoch";
 	close($WAT);
 }
