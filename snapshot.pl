@@ -1,11 +1,14 @@
 #!/usr/local/bin/perl
 use strict;
 
-my $replicate = 1;
+my $replicate = 0;
 my $to = 'patton';
-open(my $DAT, '<', '/.zfs-snapshot.last');
-	chomp(my $last = <$DAT>);
-close($DAT);
+my @excludes = (
+    'Storage/Plex',
+    'Storage/Plex/Library',
+    'Storage/Plex/Transcoding',
+    'Storage/powers'
+);
 
 die if ( -d '/Storage/Crypt' );
 open(my $LOG, '>>', '/var/log/snapshot.log');
@@ -20,22 +23,25 @@ chomp(my @filesystems = `zfs list -o name -H`);
 my $fail = 0;
 foreach my $fs (@filesystems) {
 	system("zfs snapshot $fs\@$day-$month-$date-$time-$year-$nowepoch");
+    next if ( grep(/^$fs$/, @excludes) );
 	next unless ( $replicate );
-	system("zfs send -i $fs\@$last $fs\@$day-$month-$date-$time-$year-$nowepoch | ssh $to \"zfs recv -F $fs\"");
+    chomp(my @remote = `ssh $to "zfs list -t snapshot -o name -H -r $fs 2>/dev/null"`);
+    my ( undef, $last ) = split(/\@/, pop(@remote));
+    if ( $last ) {
+    	system("zfs send -v -i $fs\@$last $fs\@$day-$month-$date-$time-$year-$nowepoch | ssh $to \"zfs recv -F $fs\"");
+    } else {
+        system("zfs send -v $fs\@$day-$month-$date-$time-$year-$nowepoch | ssh $to \"zfs recv -F $fs\"");
+#        system("ssh $to \"zfs inherit readonly $fs\"");
+    }
 	if ( $? ) {
 		$fail = 1;
 	}
 }
-system("ssh $to \"zfs set readonly=on Storage\"") if ( $replicate );
-if (( ! $fail ) || ( $replicate )) {
-	open(my $WAT, '>', '/.zfs-snapshot.last');
-		print $WAT "$day-$month-$date-$time-$year-$nowepoch";
-	close($WAT);
-}
-open($DAT, '-|', 'zfs list -o name -t snapshot -H');
+#system("ssh $to \"zfs set readonly=on Storage\"") if ( $replicate );
+open(my $DAT, '-|', 'zfs list -o name -t snapshot -H');
 	while(<$DAT>) {
 		chomp();
-		if ( /^($pool(\/[a-zA-Z0-9\-\/]+)?)\@([a-zA-Z]+)\-([a-zA-Z]+)\-([0-9]+)\-([0-9]{2}:[0-9]{2}:[0-9]{2})\-([0-9]{4})\-([0-9]{10})/ ) {
+		if ( /^($pool(\/[a-zA-Z0-9\-\/\_]+)?)\@([a-zA-Z]+)\-([a-zA-Z]+)\-([0-9]+)\-([0-9]{2}:[0-9]{2}:[0-9]{2})\-([0-9]{4})\-([0-9]{10})/ ) {
 			my ( $fs, $day, $month, $date, $time, $year, $epoch ) = ( $1, $3, $4, $5, $6, $7, $8 );
 			my ( $hour, $minute, $second ) = split(/:/, $time);
 			
